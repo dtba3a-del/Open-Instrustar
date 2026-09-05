@@ -199,7 +199,22 @@ jobs:
           done
           if [ "$found" -eq 0 ]; then
             rmdir "$dst" 2>/dev/null || true
-            printf '%-38s %-16s ЛИЦЕНЗИИ В ПАКЕТЕ НЕТ\n' "$pkg" "$ver" >> licenses/СОСТАВ.txt
+            # Пакет MSYS2 может не нести своей лицензии — так у fftw. Оставить
+            # строку «нет» значило бы распространять чужой код без его условий,
+            # а это ровно то, что закрывает O-08. Поэтому объявленная лицензия
+            # берётся из нашего же набора текстов (LICENSES/), и в СОСТАВ.txt
+            # пишется, ГДЕ она лежит. Соответствие объявлено здесь явно: угадывать
+            # лицензию по имени пакета нельзя, а не написать ничего — нельзя тем более.
+            case "$pkg" in
+              *-fftw)   decl="GPL-2.0-or-later" ;;
+              *-libusb) decl="LGPL-2.1-or-later" ;;
+              *)        decl="" ;;
+            esac
+            if [ -n "$decl" ] && [ -f "licenses/texts/$decl.txt" ]; then
+              printf '%-38s %-16s %s -> licenses/texts/%s.txt\n' "$pkg" "$ver" "$decl" "$decl" >> licenses/СОСТАВ.txt
+            else
+              printf '%-38s %-16s ЛИЦЕНЗИИ В ПАКЕТЕ НЕТ И СООТВЕТСТВИЕ НЕ ОБЪЯВЛЕНО\n' "$pkg" "$ver" >> licenses/СОСТАВ.txt
+            fi
           else
             printf '%-38s %-16s licenses/%s/ (%d файл(ов))\n' "$pkg" "$ver" "$short" "$found" >> licenses/СОСТАВ.txt
           fi
