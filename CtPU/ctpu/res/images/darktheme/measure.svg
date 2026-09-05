@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- CtPU icon set. Стиль: docs/images/ATAS-logo.svg (знак пользователя).
+     Сгенерировано tools/make_icons.py — правьте генератор, не файл. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <circle cx="24" cy="24" r="22" fill="#3daee9" opacity="0.14"/>
+  <g fill="none" stroke="#3daee9" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 33 h30"/>
+    <path d="M13 33 v-5 M21 33 v-8 M29 33 v-5 M37 33 v-8"/>
+    <path d="M9 17 q10 6 30 -2"/>
+  </g>
+</svg>

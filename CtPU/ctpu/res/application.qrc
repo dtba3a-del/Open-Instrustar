@@ -1,0 +1,83 @@
+<!-- Last edited: 2026-08-11 11:31:17 UTC -->
+<RCC>
+    <qresource prefix="/">
+        <file alias="switch_6022BL.png">images/switch_6022BL.png</file>
+        <file>images/ctpu.svg</file>
+        <file>images/lighttheme/histogram.svg</file>
+        <file>images/lighttheme/measure.svg</file>
+        <file>images/lighttheme/pause.svg</file>
+        <file>images/lighttheme/phosphor.svg</file>
+        <file>images/lighttheme/play.svg</file>
+        <file>images/lighttheme/refresh.svg</file>
+        <file>images/lighttheme/zoom.svg</file>
+
+        <file>images/darktheme/histogram.svg</file>
+        <file>images/darktheme/measure.svg</file>
+        <file>images/darktheme/pause.svg</file>
+        <file>images/darktheme/phosphor.svg</file>
+        <file>images/darktheme/play.svg</file>
+        <file>images/darktheme/refresh.svg</file>
+        <file>images/darktheme/zoom.svg</file>
+
+        <file>images/lighttheme/about.svg</file>
+        <file>images/lighttheme/book.svg</file>
+        <file>images/lighttheme/camera.svg</file>
+        <file>images/lighttheme/camera_setup.svg</file>
+        <file>images/lighttheme/camera_photo.svg</file>
+        <file>images/lighttheme/camera_shot.svg</file>
+        <file>images/lighttheme/clone.svg</file>
+        <file>images/lighttheme/exit.svg</file>
+        <file>images/lighttheme/exporter.svg</file>
+        <file>images/lighttheme/offset.svg</file>
+        <file>images/lighttheme/open.svg</file>
+        <file>images/lighttheme/print.svg</file>
+        <file>images/lighttheme/qt.svg</file>
+        <file>images/lighttheme/save.svg</file>
+        <file>images/lighttheme/save_as.svg</file>
+        <file>images/lighttheme/settings.svg</file>
+        <file>images/lighttheme/terminal.svg</file>
+        <file>images/lighttheme/docks.svg</file>
+        <file>images/lighttheme/file.svg</file>
+        <file>images/lighttheme/help.svg</file>
+        <file>images/lighttheme/mod_ac.svg</file>
+        <file>images/lighttheme/mod_fg.svg</file>
+        <file>images/lighttheme/scope.svg</file>
+        <file>images/lighttheme/toolbars.svg</file>
+        <file>images/lighttheme/view.svg</file>
+        <file>images/lighttheme/link.svg</file>
+
+        <file>images/darktheme/about.svg</file>
+        <file>images/darktheme/book.svg</file>
+        <file>images/darktheme/camera.svg</file>
+        <file>images/darktheme/camera_setup.svg</file>
+        <file>images/darktheme/camera_photo.svg</file>
+        <file>images/darktheme/camera_shot.svg</file>
+        <file>images/darktheme/clone.svg</file>
+        <file>images/darktheme/exit.svg</file>
+        <file>images/darktheme/exporter.svg</file>
+        <file>images/darktheme/offset.svg</file>
+        <file>images/darktheme/open.svg</file>
+        <file>images/darktheme/print.svg</file>
+        <file>images/darktheme/qt.svg</file>
+        <file>images/darktheme/save.svg</file>
+        <file>images/darktheme/save_as.svg</file>
+        <file>images/darktheme/settings.svg</file>
+        <file>images/darktheme/terminal.svg</file>
+        <file>images/darktheme/docks.svg</file>
+        <file>images/darktheme/file.svg</file>
+        <file>images/darktheme/help.svg</file>
+        <file>images/darktheme/mod_ac.svg</file>
+        <file>images/darktheme/mod_fg.svg</file>
+        <file>images/darktheme/scope.svg</file>
+        <file>images/darktheme/toolbars.svg</file>
+        <file>images/darktheme/view.svg</file>
+        <file>images/darktheme/link.svg</file>
+    </qresource>
+    <qresource prefix="/config">
+        <file alias="spectrum.png">images/config/spectrum.png</file>
+        <file alias="scope.png">images/config/scope.png</file>
+        <file alias="colors.png">images/config/colors.png</file>
+        <file alias="ctpu_math.png">images/config/ctpu_math.png</file>
+        <file alias="ctpu_math.svg">images/config/ctpu_math.svg</file>
+    </qresource>
+</RCC>

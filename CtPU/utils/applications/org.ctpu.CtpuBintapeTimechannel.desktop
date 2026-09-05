@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=CtPU·BinTape·TimeChannel
+GenericName=Digital Storage Oscilloscope
+GenericName[de]=Digitales Speicheroszilloskop
+GenericName[es]=Osciloscopio de almacenamiento digital
+GenericName[fr]=Oscilloscope numérique de stockage
+GenericName[it]=Oscilloscopio a memoria digitale
+GenericName[pl]=Cyfrowy oscyloskop magazynowy
+GenericName[pt]=Osciloscópio de armazenamento digital
+GenericName[ru]=Цифровой запоминающий осциллограф
+GenericName[sv]=Digitalt lagringsoscilloskop
+GenericName[zh]=数字存储示波器
+Comment=Measurement software for the InstruStar ISDS205B USB oscilloscope
+Comment[ru]=Приложение для USB-осциллографа InstruStar ISDS205B
+Exec=CtpuBintapeTimechannel
+Icon=ctpu
+Categories=Development;Engineering;Electronics;

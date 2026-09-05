@@ -1,0 +1,272 @@
+# Сборка CtPU (каталог `CtPU/`) под Windows 11 x64 / MSYS2 MinGW64 / Qt5.
+#
+# Приложение — GPL-3.0. Оно происходит от OpenHantek6022, авторы которого не
+# мы, поэтому публичный двоичный выпуск обязан сопровождаться соответствующим
+# исходным текстом (GPL-3.0 §6). Здесь это условие выполнено самым прямым
+# способом: исходник лежит в том же репозитории, что и выпуск.
+#
+# Запуск только вручную (`workflow_dispatch`): автоматический прогон по push
+# снят в основном репозитории проекта распоряжением автора, и здесь то же
+# правило.
+
+name: CtPU Build
+
+on: [workflow_dispatch]
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+  SRC: CtPU
+
+jobs:
+  windows-mingw_w64:
+    runs-on: windows-2022
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Get Version
+      id: version
+      shell: bash
+      run: |
+        # Разряды R.T.B живут в ctpu/src/CTPU_VERSION.h. Тегов в этом
+        # репозитории нет, и версия берётся оттуда, а не вырождается в SHA.
+        HDR=$(sed -n 's/^#define[[:space:]]\+\(LAST_\)\?CTPU_VERSION[[:space:]]\+"\([^"]\+\)".*/\2/p' \
+              "$SRC/ctpu/src/CTPU_VERSION.h" | head -1)
+        VER="${HDR:-0.0.0}-0-g$(git rev-parse --short HEAD)"
+        echo "version=$VER"
+        echo "version=$VER" >> $GITHUB_OUTPUT
+
+    - name: Install MSYS2 Packages
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: >-
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-qt5-static
+          mingw-w64-x86_64-fftw
+          mingw-w64-x86_64-libusb
+
+    - name: Check Authorship In Application
+      # Распоряжение автора: инструмент авторства не имеет и в приложении не
+      # называется, а автор — называется. Проверка стоит ПЕРЕД сборкой и её
+      # останавливает: правило, которое надо вспомнить, не работает.
+      shell: bash
+      env:
+        PYTHONIOENCODING: utf-8
+      run: python $SRC/tools/check_app_authorship.py
+
+    - name: Build Application
+      shell: msys2 {0}
+      run: |
+        cmake -D CMAKE_PREFIX_PATH=/mingw64/qt5-static -D CMAKE_BUILD_TYPE=$BUILD_TYPE -S $SRC -B build
+        cmake --build build --parallel 8 --target package
+
+    - name: Run Unit Tests
+      shell: msys2 {0}
+      run: ctest --test-dir build --output-on-failure
+
+    - name: Build And Test InstruStar Connector
+      # Коннектор пути A — отдельный проект с отдельным каталогом сборки:
+      # путь A (вендорская vdso.dll) и путь B (fx2lafw) не должны смешаться
+      # объектными файлами.
+      shell: msys2 {0}
+      run: |
+        cmake -D CMAKE_PREFIX_PATH=/mingw64/qt5-static -D CMAKE_BUILD_TYPE=$BUILD_TYPE -S $SRC/ictpu -B build-ictpu
+        cmake --build build-ictpu --parallel 8
+        ctest --test-dir build-ictpu --output-on-failure
+
+    - name: Smoke Test Vendor Library
+      # Проверка на НАСТОЯЩЕЙ vdso.dll: библиотека грузится вместе со своим
+      # рантаймом MSVC, связываются все 73 экспорта, InitDll отрабатывает.
+      # Прибора у сборочной машины нет, и его отсутствие отказом не считается.
+      shell: msys2 {0}
+      run: ./build-ictpu/Ismoke_vdso.exe $SRC/vendor/vdso.dll
+
+    - name: Deploy Runtime Dependencies
+      # Список берётся у самого бинарника (objdump -p, поле DLL Name:) и
+      # обходится рекурсивно: у скопированной библиотеки бывают свои. Чего
+      # нет в /mingw64/bin — системное, его приносит Windows.
+      shell: msys2 {0}
+      working-directory: ${{github.workspace}}/build/ctpu
+      run: |
+        set -u
+        BIN=/mingw64/bin
+        todo=( CtpuBintapeTimechannel.exe )
+        seen=" "
+        copied=0
+        while [ ${#todo[@]} -gt 0 ]; do
+          cur="${todo[0]}"
+          todo=( "${todo[@]:1}" )
+          case "$seen" in *" $cur "*) continue ;; esac
+          seen="$seen$cur "
+          if   [ -f "$cur" ];      then src="$cur"
+          elif [ -f "$BIN/$cur" ]; then src="$BIN/$cur"
+          else continue
+          fi
+          for dll in $( objdump -p "$src" | sed -n 's/^[[:space:]]*DLL Name:[[:space:]]*//p' ); do
+            if [ -f "$BIN/$dll" ]; then
+              if [ ! -f "$dll" ]; then
+                cp "$BIN/$dll" .
+                copied=$(( copied + 1 ))
+                echo "  + $dll"
+              fi
+              todo+=( "$dll" )
+            fi
+          done
+        done
+        echo "Скопировано библиотек: $copied"
+
+    - name: Verify Runtime Dependencies
+      # Проверка, а не надежда: пропущенная библиотека не мешает ни сборке,
+      # ни тестам — она проявляется окном «система не обнаружила …» на чужой
+      # машине. Поэтому шаг ПАДАЕТ, если хоть одна зависимость осталась вне
+      # каталога.
+      shell: msys2 {0}
+      working-directory: ${{github.workspace}}/build/ctpu
+      run: |
+        set -u
+        BIN=/mingw64/bin
+        missing=""
+        for f in *.exe *.dll; do
+          [ -f "$f" ] || continue
+          for dll in $( objdump -p "$f" | sed -n 's/^[[:space:]]*DLL Name:[[:space:]]*//p' ); do
+            if [ -f "$BIN/$dll" ] && [ ! -f "$dll" ]; then
+              missing="$missing $dll(нужна для $f)"
+            fi
+          done
+        done
+        if [ -n "$missing" ]; then
+          echo "НЕ ХВАТАЕТ в каталоге поставки:$missing"
+          exit 1
+        fi
+        echo "Все объявленные зависимости на месте."
+        for f in *.dll; do
+          [ -f "$f" ] || continue
+          printf '%s  <-  %s\n' "$f" "$( pacman -Qo "/mingw64/bin/$f" 2>/dev/null | sed 's/.*принадлежит //; s/.*is owned by //' )"
+        done
+        ls -l *.dll 2>/dev/null || echo "  библиотек не потребовалось"
+
+    - name: Collect Third-Party Licenses
+      # Apache-2.0 §4(a) требует вручить получателю копию лицензии; zlib и BSD
+      # требуют сохранить уведомление об авторских правах при распространении.
+      # Публичный выпуск — распространение в самом прямом смысле, поэтому
+      # тексты собираются механизмом, а не обещанием, и берутся у самих
+      # пакетов MSYS2, то есть у первоисточника.
+      shell: msys2 {0}
+      working-directory: ${{github.workspace}}/build/ctpu
+      run: |
+        set -u
+        W="$GITHUB_WORKSPACE/CtPU"
+        mkdir -p licenses
+        cp "$W/LICENSE" licenses/CtPU-GPL-3.0.txt
+        if [ -d "$W/LICENSES" ]; then
+          mkdir -p licenses/texts && cp "$W/LICENSES"/*.txt licenses/texts/ || true
+        fi
+
+        PKGS=""
+        for f in *.dll; do
+          [ -f "$f" ] || continue
+          own=$( pacman -Qo "/mingw64/bin/$f" 2>/dev/null || true )
+          pkg=$( printf '%s' "$own" | sed -E 's/.*(принадлежит|is owned by) //; s/ .*//' )
+          if [ -n "$pkg" ]; then PKGS="$PKGS $pkg"; else echo "БЕЗ ПАКЕТА: $f"; fi
+        done
+        # Qt, FFTW и libusb влинкованы В exe статически: в списке *.dll их не
+        # видно вовсе, а распространяются они ровно так же.
+        for pkg in mingw-w64-x86_64-qt5-static mingw-w64-x86_64-fftw mingw-w64-x86_64-libusb; do
+          PKGS="$PKGS $pkg"
+        done
+
+        {
+          echo "Чужой код в этом архиве: пакет, версия, где его лицензия."
+          echo "Список снят с самой сборки, не составлен по памяти."
+          echo
+        } > licenses/СОСТАВ.txt
+
+        for pkg in $( printf '%s\n' $PKGS | sort -u ); do
+          ver=$( pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' )
+          [ -n "$ver" ] || ver="версия не определена"
+          short=$( printf '%s' "$pkg" | sed 's/^mingw-w64-x86_64-//' )
+          dst="licenses/$short"
+          mkdir -p "$dst"
+          found=0
+          for f in $( pacman -Ql "$pkg" 2>/dev/null | awk '{print $2}' | grep '/share/licenses/' | grep -v '/$' ); do
+            cp "$f" "$dst/" 2>/dev/null && found=$(( found + 1 ))
+          done
+          if [ "$found" -eq 0 ]; then
+            rmdir "$dst" 2>/dev/null || true
+            printf '%-38s %-16s ЛИЦЕНЗИИ В ПАКЕТЕ НЕТ\n' "$pkg" "$ver" >> licenses/СОСТАВ.txt
+          else
+            printf '%-38s %-16s licenses/%s/ (%d файл(ов))\n' "$pkg" "$ver" "$short" "$found" >> licenses/СОСТАВ.txt
+          fi
+        done
+
+        if [ -f vdso.dll ]; then
+          {
+            echo
+            echo "vdso.dll — библиотека InstruStar (仪星电子 / YiXingDianZi)."
+            echo "Лицензии у неё НЕТ: её нет ни в SDK, ни в репозитории вендора"
+            echo "https://github.com/instrustar-dev/SDK/. Файл включён решением"
+            echo "автора проекта; правами на него проект не обладает и никому"
+            echo "их не передаёт. Без него окно генератора DDS не работает."
+          } >> licenses/СОСТАВ.txt
+        fi
+
+        echo "--- licenses/СОСТАВ.txt ---"
+        cat licenses/СОСТАВ.txt
+
+    - name: Create Windows Package
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: |
+        ZIP=$(basename packages/*_mingw_x64.zip)
+        rm -f packages/*_mingw_x64.*
+        cd ctpu
+        DLLS=$( ls *.dll 2>/dev/null || true )
+        7z a ../packages/$ZIP *.exe $DLLS driver documents licenses
+        ls -l ../packages
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CtPU_${{ steps.version.outputs.version }}_mingw_x64
+        path: ./build/packages/*
+
+    - name: Publish Public Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ctpu-${{ steps.version.outputs.version }}
+        name: CtPU ${{ steps.version.outputs.version }} — Windows 11 x64
+        prerelease: true
+        files: ./build/packages/*
+        body: |
+          Сборка `CtPU/` из этого репозитория, коммит ${{ github.sha }}.
+
+          Цель: **Windows 11 x64, MSYS2 MinGW64, Qt5**. Прибор — InstruStar
+          ISDS205B. Других платформ и приборов у этой сборки нет.
+
+          **Это пререлиз, а не выпуск.** Собрано и проверено сборкой; на
+          приборе не проверялось.
+
+          ---
+
+          **Лицензия приложения — GPL-3.0.** Соответствующий исходный текст
+          (GPL-3.0 §6) лежит в этом же репозитории, каталог `CtPU/`: тот
+          самый, из которого собран этот архив.
+
+          Лицензии остальных компонентов — в архиве, каталог `licenses/`;
+          состав с версиями — `licenses/СОСТАВ.txt`. Тексты взяты у самих
+          пакетов, а не переписаны.
+
+          **`vdso.dll` в архиве — библиотека InstruStar, и лицензии у неё не
+          существует.** Она включена решением автора проекта, потому что без
+          неё окно генератора DDS не работает вовсе. Правами на этот файл
+          проект не обладает и никому их не передаёт. Автору библиотеки
+          направлено письмо с просьбой определить лицензию на материалы,
+          выложенные в https://github.com/instrustar-dev/SDK/.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

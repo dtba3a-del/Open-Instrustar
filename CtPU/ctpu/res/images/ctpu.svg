@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <circle cx="24" cy="24" r="21.2" fill="#2f4a57"/>
+  <circle cx="24" cy="24" r="21.2" fill="none" stroke="#3daee9" stroke-width="1.8"/>
+  <text x="24" y="26.5" font-family="DejaVu Sans, Verdana, sans-serif" font-size="13"
+        font-weight="bold" fill="#3daee9" text-anchor="middle" letter-spacing="0.2">CtPU</text>
+  <polyline points="12,35 19,35 24,31 29,35 36,35" fill="none" stroke="#b6d7d8"
+        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
