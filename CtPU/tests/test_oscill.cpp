@@ -2328,10 +2328,19 @@ void TestOscill::testFramesThroughBackend() {
     QCOMPARE( backend.frameSerial(), 2ull );
     QCOMPARE( backend.frame().channel[ 0 ].sample, ( std::vector< int >{ 0x0102, 0xFEDC } ) );
 
-    // Шкала канала без установленной рамки — не шкала: коды в вольты не
-    // пересчитываются до измерения на приборе.
-    QCOMPARE( backend.codeSpan(), CodeSpan::Unverified );
+    // Рамка кодов установлена по спецификации изготовителя: 256 кодов на
+    // 8 делений. Прежде умолчанием был отказ считать (`Unverified`), потому
+    // что описание протокола давало единицу V1 двумя несводимыми числами;
+    // таблица аттенюатора с сайта решила спор — девять строк из девяти
+    // сходятся с делением на 256 и ни одна на 240.
+    QCOMPARE( backend.codeSpan(), CodeSpan::Codes256 );
+    QVERIFY( backend.channelScale().known );
+
+    // Отказ считать никуда не делся и остаётся доступен: он нужен, когда
+    // прибор отвечает не так, как написано в его же документации.
+    backend.setCodeSpan( CodeSpan::Unverified );
     QVERIFY( !backend.channelScale().known );
+
     backend.setCodeSpan( CodeSpan::Codes256 );
     const ChannelScale scale = backend.channelScale();
     QVERIFY( scale.known );

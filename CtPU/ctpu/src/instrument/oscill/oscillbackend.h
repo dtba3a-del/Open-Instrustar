@@ -420,7 +420,12 @@ class OscillBackend final : public Backend, public WaveformSource {
     Oscill::Frame m_frame;
     unsigned long long m_frameSerial = 0;
     Oscill::FrameLayout m_layout = Oscill::FrameLayout::Unknown;
-    Oscill::CodeSpan m_codeSpan = Oscill::CodeSpan::Unverified;
+    /// 256 кодов на 8 делений — по спецификации изготовителя, сверенной по
+    /// девяти строкам таблицы аттенюатора (разбор — `CodeSpan` в
+    /// oscillprotocol.h). Прежде здесь стоял `Unverified`, и пересчёт кодов в
+    /// напряжение отказывал: рамка не была установлена. Теперь установлена —
+    /// документом изготовителя, а не догадкой.
+    Oscill::CodeSpan m_codeSpan = Oscill::CodeSpan::Codes256;
     Oscill::BodyAssembler m_assembler;
     std::vector< int > m_rollSamples;
 
