@@ -183,12 +183,15 @@ jobs:
 
         {
           echo "СОСТАВ АРХИВА: чужой код и условия, на которых он здесь лежит."
+          echo "(имя файла латиницей намеренно: zip хранит кириллические имена"
+          echo " без признака UTF-8, и у получателя файл распаковывался с именем"
+          echo " вида #U0421#U041e... — то есть не находился вовсе.)"
           echo "Список снят с самой сборки, не составлен по памяти."
           echo
           echo "Раздел 1 — компоненты с лицензией. У каждого она ЕСТЬ; вопрос"
           echo "только в том, где лежит её текст."
           echo
-        } >> licenses/СОСТАВ.txt
+        } >> licenses/CONTENTS.txt
 
         for pkg in $( printf '%s\n' $PKGS | sort -u ); do
           ver=$( pacman -Q "$pkg" 2>/dev/null | awk '{print $2}' )
@@ -233,7 +236,7 @@ jobs:
             fi
           fi
           printf '  %-30s %-12s лицензия: %-22s текст: %s\n' \
-                 "$short" "$ver" "$decl" "$where" >> licenses/СОСТАВ.txt
+                 "$short" "$ver" "$decl" "$where" >> licenses/CONTENTS.txt
         done
 
         # Вендорская библиотека пути A. Её случай ДРУГОГО РОДА, и раздел
@@ -257,11 +260,11 @@ jobs:
             echo "  проект не обладает и никому их не передаёт."
             echo "  Автору библиотеки направлено письмо с просьбой лицензию"
             echo "  определить."
-          } >> licenses/СОСТАВ.txt
+          } >> licenses/CONTENTS.txt
         fi
 
-        echo "--- licenses/СОСТАВ.txt ---"
-        cat licenses/СОСТАВ.txt
+        echo "--- licenses/CONTENTS.txt ---"
+        cat licenses/CONTENTS.txt
 
     - name: Create Windows Package
       working-directory: ${{github.workspace}}/build
@@ -271,6 +274,9 @@ jobs:
         rm -f packages/*_mingw_x64.*
         cd ctpu
         DLLS=$( ls *.dll 2>/dev/null || true )
+        # *.exe захватывает и Ioscill_probe.exe — пробник замера на приборе.
+        # Он и должен уезжать вместе с приложением: замер делается на машине
+        # автора, а собрать его там нечем.
         7z a ../packages/$ZIP *.exe $DLLS driver documents licenses
         ls -l ../packages
 
@@ -303,7 +309,7 @@ jobs:
           самый, из которого собран этот архив.
 
           Лицензии остальных компонентов — в архиве, каталог `licenses/`;
-          состав с версиями — `licenses/СОСТАВ.txt`. Тексты взяты у самих
+          состав с версиями — `licenses/CONTENTS.txt`. Тексты взяты у самих
           пакетов, а не переписаны.
 
           **`vdso.dll` в архиве — библиотека InstruStar, и лицензии у неё не

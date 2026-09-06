@@ -133,6 +133,29 @@ if(WIN32)
         message(WARNING "vdso.dll не найдена ни в одном из ${VDSO_CANDIDATES} — окно генератора попросит указать путь")
     endif()
 endif()
+# Пробник Oscill: замер НА ПРИБОРЕ нашим же кодом.
+#
+# Распоряжение автора 2026-09-06: «важно что бы ты написал его корректно коду.
+# и получил искомое, против угаданного?» Поэтому пробник не повторяет протокол
+# своими средствами — он линкует те же SerialTransport и OscillBackend, что и
+# приложение, и его вывод говорит о НАШЕЙ ПРОГРАММЕ, а не только о приборе.
+#
+# Цель отдельная от приложения: у неё свой main и она не тянет ни виджеты, ни
+# OpenGL. В архив поставки попадает рядом с приложением.
+add_executable(Ioscill_probe
+    tools/Ioscill_probe.cpp
+    src/instrument/oscill/obexcodec.cpp
+    src/instrument/oscill/oscillprotocol.cpp
+    src/instrument/oscill/oscillbackend.cpp
+    src/instrument/oscill/serialtransport.cpp
+    src/instrument/instrumentregistry.cpp
+)
+target_include_directories(Ioscill_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(Ioscill_probe Qt5::Core)
+if (WIN32)
+    target_link_libraries(Ioscill_probe setupapi)
+endif()
+
 if (Qt5Multimedia_FOUND)
     target_link_libraries(${PROJECT_NAME} Qt5::Multimedia)
     target_compile_definitions(${PROJECT_NAME} PRIVATE CTPU_HAVE_CAMERA)

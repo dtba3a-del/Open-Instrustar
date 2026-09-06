@@ -62,6 +62,28 @@ set_target_properties(test_instrument PROPERTIES AUTOMOC ON)
 target_link_libraries(test_instrument PRIVATE Qt5::Test)
 add_test(NAME test_instrument COMMAND test_instrument)
 
+# test_oscill — прибор Oscill: кодек OBEX, пересчёты в физические единицы,
+# разбор кадра, бэкенд на поддельной оснастке. Прибора нет — значит
+# проверяется всё, что до прибора.
+#
+# `serialtransport.cpp` в цель НЕ включён намеренно: он платформенный
+# (`windows.h` либо `termios.h`) и требует живого порта. Определения
+# методов `SerialTransport`, без которых не собрался бы `dynamic_cast`
+# бэкенда и его `exists()`, стоят в самом тесте — за ними сидит
+# поддельный прибор, а не платформа.
+#
+# `instrumentregistry.cpp` нужен потому, что бэкенд объявляет свою модель
+# в реестре приборов (`declareOscill`).
+add_executable(test_oscill test_oscill.cpp
+    ${CMAKE_SOURCE_DIR}/ctpu/src/instrument/oscill/obexcodec.cpp
+    ${CMAKE_SOURCE_DIR}/ctpu/src/instrument/oscill/oscillprotocol.cpp
+    ${CMAKE_SOURCE_DIR}/ctpu/src/instrument/oscill/oscillbackend.cpp
+    ${CMAKE_SOURCE_DIR}/ctpu/src/instrument/instrumentregistry.cpp
+)
+set_target_properties(test_oscill PROPERTIES AUTOMOC ON)
+target_link_libraries(test_oscill PRIVATE Qt5::Test)
+add_test(NAME test_oscill COMMAND test_oscill)
+
 # test_params — реестр параметров (params.h). Нужен сам params.cpp и
 # enums.cpp: scopesettings.h ссылается на Dso::*Enum.
 add_executable(test_params test_params.cpp
