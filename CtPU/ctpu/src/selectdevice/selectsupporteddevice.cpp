@@ -54,7 +54,7 @@ SelectSupportedDevice::SelectSupportedDevice( QWidget *parent ) : QDialog( paren
         if ( ui->cmbDevices->currentIndex() != -1 ) {
             selectedDevice = ui->cmbDevices->currentData( Qt::UserRole ).value< UniqueUSBid >();
         }
-        QCoreApplication::instance()->quit();
+        finishSelection();
     } );
 
     connect( ui->buttonBox, &QDialogButtonBox::helpRequested, []() {
@@ -67,12 +67,68 @@ SelectSupportedDevice::SelectSupportedDevice( QWidget *parent ) : QDialog( paren
         QDesktopServices::openUrl( url );
     } );
 
-    connect( btnDemoMode, &QPushButton::clicked, this, [ this ]() { demoModeClicked = true; } );
+    connect( btnDemoMode, &QPushButton::clicked, this, [ this ]() {
+        demoModeClicked = true;
+        finishSelection();
+    } );
+}
+
+
+/// Закрытие окна зависит от того, кто его открыл. До главного окна своего
+/// цикла событий у программы ещё нет, и окно крутит цикл приложения — тогда
+/// закрыть его можно только `quit()`. Из работающего приложения тот же
+/// `quit()` закрыл бы программу целиком, поэтому там окно закрывается как
+/// обычный диалог.
+void SelectSupportedDevice::finishSelection() {
+    if ( asDialog )
+        accept();
+    else
+        QCoreApplication::instance()->quit();
+}
+
+
+std::unique_ptr< ScopeDevice > SelectSupportedDevice::probeSingleReadyDevice( libusb_context *context, int verboseLevel ) {
+    // Ни окна, ни таймера, ни записи прошивки: один проход по шине.
+    FindDevices findDevices( context, verboseLevel );
+    findDevices.updateDeviceList();
+
+    const FindDevices::DeviceList *devices = findDevices.getDevices();
+    if ( !devices )
+        return nullptr;
+
+    UniqueUSBid ready = 0;
+    int readyCount = 0;
+    for ( auto it = devices->begin(); it != devices->end(); ++it ) {
+        if ( !it->second )
+            continue;
+        // «Готов» означает: прибор отзывается СВОИМ путём, и писать в него
+        // ничего не надо. Прибору, которому нужна прошивка, здесь не делается
+        // НИЧЕГО — в этом и суть распоряжения: запуск программы не имеет права
+        // менять состояние железа. Он просто не считается готовым, и программа
+        // открывает главное окно в демонстрационном режиме.
+        if ( it->second->needsFirmware() )
+            continue;
+        QString errorMessage;
+        if ( !it->second->connectDevice( errorMessage ) ) {
+            if ( verboseLevel > 2 )
+                qDebug() << "  probeSingleReadyDevice: не отвечает —" << errorMessage;
+            continue;
+        }
+        it->second->disconnectFromDevice();
+        ready = it->first;
+        ++readyCount;
+    }
+    if ( verboseLevel )
+        qDebug() << "probeSingleReadyDevice: готовых приборов" << readyCount;
+    if ( readyCount != 1 )
+        return nullptr;
+    return findDevices.takeDevice( ready );
 }
 
 
 std::unique_ptr< ScopeDevice > SelectSupportedDevice::showSelectDeviceModal( libusb_context *context, int verboseLevel,
-                                                                             bool autoConnect ) {
+                                                                             bool autoConnect, bool asDialogMode ) {
+    asDialog = asDialogMode;
     std::unique_ptr< FindDevices > findDevices = std::unique_ptr< FindDevices >( new FindDevices( context, verboseLevel ) );
     std::unique_ptr< DevicesListModel > model =
         std::unique_ptr< DevicesListModel >( new DevicesListModel( findDevices.get(), verboseLevel ) );
@@ -191,8 +247,13 @@ std::unique_ptr< ScopeDevice > SelectSupportedDevice::showSelectDeviceModal( lib
     timer.start();
     QCoreApplication::sendEvent( &timer, new QTimerEvent( timer.timerId() ) ); // immediate timer event
 
-    show();
-    QCoreApplication::instance()->exec();
+    if ( asDialog ) {
+        setModal( true );
+        QDialog::exec();
+    } else {
+        show();
+        QCoreApplication::instance()->exec();
+    }
     timer.stop();
     close();
     if ( demoModeClicked )

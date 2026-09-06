@@ -2,14 +2,22 @@
 
 #include "connectiondialog.h"
 
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QGroupBox>
+#include <QMessageBox>
+#include <QProcess>
+#include <QTimer>
 #include <QPushButton>
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
+#include <memory>
+
 #include "hantekdso/hantekdsocontrol.h"
 #include "hantekdso/controlspecification.h"
+#include "dsomodel.h"
+#include "selectdevice/selectsupporteddevice.h"
 #include "usb/scopedevice.h"
 
 #ifdef Q_OS_FREEBSD
@@ -30,12 +38,85 @@ ConnectionDialog::ConnectionDialog( HantekDsoControl *dsoControl, QWidget *paren
     layout->addWidget( info );
 
     auto *buttons = new QDialogButtonBox( QDialogButtonBox::Close, this );
+
+    // Кнопка выбора устройства. Она здесь, а не при запуске программы, по
+    // распоряжению автора: конфигурировать оборудование программа вправе
+    // только тогда, когда оператор этого потребовал.
+    QPushButton *choose = buttons->addButton( tr( "Select device .." ), QDialogButtonBox::ActionRole );
+    choose->setToolTip( tr( "Open the device list. Nothing is written to any instrument by opening it; "
+                            "firmware upload is a separate button there. Choosing a device restarts the "
+                            "application on it." ) );
+    connect( choose, &QPushButton::clicked, this, &ConnectionDialog::chooseDevice );
+
     QPushButton *rescan = buttons->addButton( tr( "Refresh" ), QDialogButtonBox::ActionRole );
     connect( rescan, &QPushButton::clicked, this, &ConnectionDialog::refresh );
     connect( buttons, &QDialogButtonBox::rejected, this, &QDialog::reject );
     layout->addWidget( buttons );
 
     refresh();
+}
+
+
+void ConnectionDialog::chooseDevice() {
+    // Свой контекст libusb, как и у опроса шины: окно не имеет права трогать
+    // контекст работающего конвейера.
+    libusb_context *ctx = nullptr;
+    if ( libusb_init( &ctx ) != LIBUSB_SUCCESS ) {
+        QMessageBox::warning( this, tr( "Select device" ),
+                              tr( "libusb did not start, the bus cannot be asked." ) );
+        return;
+    }
+
+    std::unique_ptr< ScopeDevice > chosen;
+    {
+        SelectSupportedDevice selector( this );
+        // autoConnect = false: окно открыто ПО ТРЕБОВАНИЮ оператора, и
+        // захлопываться само, едва увидев прибор, оно не должно — оператор
+        // мог прийти сюда именно затем, чтобы записать прошивку в другой.
+        chosen = selector.showSelectDeviceModal( ctx, 0, false, true );
+    }
+
+    if ( !chosen || chosen->isDemoDevice() ) {
+        libusb_exit( ctx );
+        refresh();
+        return;
+    }
+
+    const QString name = chosen->getModel() ? chosen->getModel()->name : tr( "device" );
+    chosen.reset(); // отпустить прибор до перезапуска, иначе новый процесс его не откроет
+    libusb_exit( ctx );
+
+    const auto answer = QMessageBox::question(
+        this, tr( "Restart on the selected device" ),
+        tr( "<p>Selected: <b>%1</b>.</p>"
+            "<p>The instrument is bound when the acquisition pipeline is built, so the "
+            "application will restart to work with it. Unsaved settings of the current "
+            "session are kept in the configuration file as usual.</p>"
+            "<p>Restart now?</p>" )
+            .arg( name.toHtmlEscaped() ),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes );
+    if ( answer != QMessageBox::Yes ) {
+        refresh();
+        return;
+    }
+
+    // Перезапуск: новый процесс сам найдёт этот прибор молчаливым опросом —
+    // он теперь единственный готовый на шине.
+    const QString program = QCoreApplication::applicationFilePath();
+    QStringList args = QCoreApplication::arguments();
+    if ( !args.isEmpty() )
+        args.removeFirst();
+    if ( !QProcess::startDetached( program, args ) ) {
+        QMessageBox::warning( this, tr( "Restart failed" ),
+                              tr( "The application could not start a new instance. Close it and start "
+                                  "it again by hand to use the selected instrument." ) );
+        return;
+    }
+    // Сначала закрыть это окно, и только потом гасить программу: `quit()`,
+    // вызванный из вложенного цикла модального диалога, до главного цикла
+    // дойдёт лишь после его завершения, и порядок здесь не косметический.
+    accept();
+    QTimer::singleShot( 0, qApp, []() { QCoreApplication::quit(); } );
 }
 
 

@@ -350,23 +350,47 @@ int main( int argc, char *argv[] ) {
         if ( !doNotTranslate && useLocale ) // localize USB error messages, supported: "en", "nl", "fr", "ru"
             libusb_setlocale( QLocale().name().toLocal8Bit().constData() );
 
-        // SelectSupportedDevive returns a real device unless demoMode is true
+        // ОКНА ВЫБОРА УСТРОЙСТВА ЗДЕСЬ НЕТ И БЫТЬ НЕ ДОЛЖНО.
+        //
+        // Распоряжение автора 2026-09-04, повторённое 2026-09-06: «убери это
+        // окно из автозагрузки приложения. подключи его на кнопку».
+        //
+        // Дело не в удобстве. Окно стояло ПЕРЕД главным окном и
+        // КОНФИГУРИРОВАЛО ОБОРУДОВАНИЕ: находя знакомый дескриптор, оно
+        // заливало прошивку, не спрашивая и не проверяя, в каком классе
+        // драйвера прибор находится. На машине, где прибор работал под
+        // вендорским драйвером, простой запуск этой программы оставлял
+        // оператора с неработоспособным прибором — тот уходил в 1d50:608e,
+        // за который в системе не отвечает никто. Запуск программы не имеет
+        // права менять состояние железа.
+        //
+        // Что делается вместо этого: ОДИН молчаливый проход по шине. Ровно
+        // один готовый прибор — работаем с ним; иначе открывается главное
+        // окно в демонстрационном режиме, и выбор устройства остаётся за
+        // оператором: кнопка «Выбрать устройство…» в окне «Connection».
+        // Ни прошивки, ни смены драйвера, ни вопросов при запуске.
         if ( verboseLevel )
             qDebug() << startupTime.elapsed() << "ms:"
-                     << "show splash screen";
-        scopeDevice = SelectSupportedDevice().showSelectDeviceModal( context, verboseLevel, autoConnect );
-        if ( scopeDevice && scopeDevice->isDemoDevice() ) {
+                     << "молчаливый опрос шины (окно выбора не показывается)";
+        scopeDevice = SelectSupportedDevice::probeSingleReadyDevice( context, verboseLevel );
+        if ( scopeDevice ) {
+            QString errorMessage;
+            if ( !scopeDevice->connectDevice( errorMessage ) ) {
+                // Прибор был готов секунду назад и перестал отвечать сейчас.
+                // Это не повод обрывать запуск: главное окно откроется, а
+                // оператор увидит положение дел в окне «Connection».
+                if ( !errorMessage.isEmpty() )
+                    qWarning() << errorMessage;
+                scopeDevice.reset();
+            }
+        }
+        if ( !scopeDevice ) {
+            if ( verboseLevel )
+                qDebug() << "готовый прибор не найден — демонстрационный режим,"
+                         << "выбор устройства доступен кнопкой в окне «Connection»";
             libusb_exit( context ); // stop all USB activities
             context = nullptr;
-        } else {
-            QString errorMessage;
-            if ( scopeDevice == nullptr || !scopeDevice->connectDevice( errorMessage ) ) {
-                libusb_exit( context ); // clean USB
-                context = nullptr;
-                if ( !errorMessage.isEmpty() )
-                    qCritical() << errorMessage;
-                return -1;
-            }
+            scopeDevice = std::unique_ptr< ScopeDevice >( new ScopeDevice() );
         }
     } else {
         scopeDevice = std::unique_ptr< ScopeDevice >( new ScopeDevice() );
